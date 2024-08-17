@@ -16,9 +16,8 @@ from pathlib import Path
 from datetime import datetime
 
 import sys
-sys.path.insert(0, str(Path(__file__).resolve().parents[2])) #creates an output directory within the system
+sys.path.insert(0, str(Path(__file__).resolve().parents[3])) #creates an output directory within the system
 # where charts, and plots are stored.
-
 
 #Ignore warnings
 import warnings
@@ -27,7 +26,7 @@ warnings.filterwarnings('ignore')
 #Function to create a folder where outputs of the projects are stored within the local drive
 def getpath():
     # Ouput Files paths
-    PATH = Path() / "blending_model" /"output"
+    PATH = Path() / "BlendingModelOutput"
     PATH.mkdir(parents=True, exist_ok=True)
     return PATH
 
