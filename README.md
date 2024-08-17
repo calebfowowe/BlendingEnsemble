@@ -1,1 +1,1 @@
-# blended_ensemble
+# BlendingEnsemble Model - CQF Final Project
