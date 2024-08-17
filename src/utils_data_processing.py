@@ -5,7 +5,7 @@ import numpy as np
 # Data visualization Library
 import plotly.express as px
 import plotly.graph_objects as go
-px.height, px.width = 400, 600
+px.height, px.width = 600, 600
 
 # Data cleaning and imputation module
 from sklearn.impute import KNNImputer
@@ -16,7 +16,9 @@ from pathlib import Path
 from datetime import datetime
 
 import sys
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2])) #creates an output directory within the system
+# where charts, and plots are stored.
+
 
 #Ignore warnings
 import warnings
@@ -25,7 +27,7 @@ warnings.filterwarnings('ignore')
 #Function to create a folder where outputs of the projects are stored within the local drive
 def getpath():
     # Ouput Files paths
-    PATH = Path() / "output" / "blending_model"
+    PATH = Path() / "blending_model" /"output"
     PATH.mkdir(parents=True, exist_ok=True)
     return PATH
 
