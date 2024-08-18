@@ -221,13 +221,14 @@ class FeaturesCreation(FeaturesEngineering):
         # Calculate Price to Cash & Price to Earnings Combined (PCFPER)
         pcfper_required_cols = ['PriceToEarnings', 'PriceToCash']
         if all(col in dt.columns for col in pcfper_required_cols):
-            dt['PCFPER'] = (dt['PriceToEarnings'] + dt['PriceToCash']) / 2
+            dt['PCFPER'] =  (dt['PriceToCash'] + dt['PriceToEarnings']) / 2
             logger.info("Price to Cash & Price to Earnings Combined (PCFPER) feature successfully calculated")
 
         #Calculate combined valuation metric (cvm)
-        cvm_required_cols = ['DividendYield', 'PriceToEarnings', 'PriceToBook']
+        cvm_required_cols = ['DividendYield', 'PriceToEarnings', 'PriceToCash', 'PriceToBook']
         if all(col in dt.columns for col in cvm_required_cols):
-            dt['CVM'] = ((dt['DividendYield'] * 0.25) + (dt['PriceToEarnings'] * 0.50) + (dt['PriceToBook'] * 0.25))
+            dt['CVM'] = ((dt['DividendYield'] * 0.25) + (dt['PriceToEarnings'] * 0.25) +
+                         (dt['PriceToBook'] * 0.25) + (dt['PriceToCash'] * 0.25))
             logger.info("Combined Valuation Metric (CVM)_feature successfully calculated")
 
         else:
