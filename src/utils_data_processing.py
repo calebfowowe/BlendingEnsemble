@@ -24,10 +24,15 @@ import warnings
 warnings.filterwarnings('ignore')
 
 #Function to create a folder where outputs of the projects are stored within the local drive
-def getpath():
-    # Ouput Files paths
-    PATH = Path() / "BlendingModelOutput"
-    PATH.mkdir(parents=True, exist_ok=True)
+def getpath(name=None):
+    if name is not None:
+        #Ouput Files paths
+        PATH = Path() / "BlendingModelOutput"/ f"{name}"
+        PATH.mkdir(parents=True, exist_ok=True)
+    else:
+        # defined path within path
+        PATH = Path() / "BlendingModelOutput"
+        PATH.mkdir(parents=True, exist_ok=True)
     return PATH
 
 
@@ -172,7 +177,7 @@ class LoadData:
         return df
 
 
-    def plotCandleStick(self, data):
+    def plotCandleStick(self, data, events=None):
         df = data.copy()
         fig = go.Figure(data=[go.Ohlc(x=df.index,
                                       open=df['Open'],
@@ -180,21 +185,35 @@ class LoadData:
                                       low=df['Low'],
                                       close=df['Close'])])
 
+        if events is not None:
+            event_dates = events['event_dates']
+            event_title = events['event_title']
+            #stock_split_dates = ['2024-06-07', '2007-09-11', '2006-04-07', '2001-09-12', '2000-06-27']
+
+            for date in event_dates:
+                fig.add_shape(type='line',
+                              x0=date, x1=date,
+                              y0=0, y1 = 1,
+                              xref='x', yref='paper',
+                              line=dict(color='black', width=2, dash='dash'))
+
+                # Add annotation
+                fig.add_annotation(x=date, y=0.5, xref='x', yref='paper',
+                                   text=f"{event_title}", showarrow=False,
+                                   textangle=90,
+                                   xanchor='left', yanchor='top',
+                                   font=dict(color="red", size=12))
+                                   # bgcolor="rgba(255,255,255,0.7)",
+                                   # bordercolor="red")
+
         fig.update_layout(title=f'Candlestick of Price data Open, High, Low and Close',
                           xaxis={'title':'Date', 'color': 'black', 'zeroline': True},
                           yaxis={'title':'Prices ($)', 'color': 'black', 'zeroline': True},
-                          shapes=[dict(x0='2024-06-07 15:30', x1='2024-06-07 15:30', y0=0, y1=1, xref='x', yref='paper',
-                                       line_width=2)],
-                          annotations=[dict(x='2024-06-07 15:30', y=0.20, xref='x', yref='paper', showarrow=False,
-                                            xanchor='left',
-                                            text='7thJune \'24, 10-to-1 Stock Split')],
                           xaxis_rangeslider_visible=False,
                           width=900, height=500, plot_bgcolor='rgba(255, 255, 255, 1)',
                         paper_bgcolor='rgba(255, 255, 255, 1)')
         fig.write_html(f"{getpath()}/Candle stick of {self.kwargs['files'][0]}_{datetime.now()}.html")
         return fig.show()
-
-
 
     def plotPrices(self, data):
         stock_name = self.kwargs['files'][0]

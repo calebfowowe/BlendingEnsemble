@@ -1,4 +1,6 @@
 # Data manipulation libraries
+import traceback
+
 import pandas as pd
 import numpy as np
 
@@ -18,10 +20,10 @@ from boruta import BorutaPy
 import sys
 from pathlib import Path
 
+from src.utils_data_processing import getpath
+
 #Technical indicator
 import pandas_ta as ta
-
-from src.utils_data_processing import getpath
 
 # import os
 # print(os.getcwd())
@@ -42,10 +44,19 @@ from sklearn.feature_selection import RFE
 from sklearn.impute import KNNImputer
 from xgboost import XGBClassifier
 
-
 #Ignore warnings
 import warnings
 warnings.filterwarnings('ignore')
+
+# file logger
+from loguru import logger
+import sys
+
+output = getpath("logs")
+
+logger.remove()
+logger.add(sys.stdout, format="{time: MMMM D, YYYY - HH:mm:ss} ----- <level> {message} </level>")
+logger.add(f'{output}/blendingmodel.log', serialize=False)
 
 
 class DayTransformer(BaseEstimator, TransformerMixin):
@@ -193,30 +204,38 @@ class FeaturesCreation(FeaturesEngineering):
     def get_FA_features(self):
         dt = self.dataframe.copy()
         threshold = 1e-5
+
         # Calculate Price-to-Earnings-to-Dividend Ratio (PED)
         ped_required_cols = ['PriceToEarnings', 'DividendYield']
         if all(col in dt.columns for col in ped_required_cols):
             dt['PED_Ratio'] = dt.apply(lambda row: row['PriceToEarnings'] / row['DividendYield']
             if abs(row['DividendYield']) > threshold else float('inf'), axis=1)
-            print("Price-to-Earnings-to-Dividend Ratio (PED)Ratio feature successfully calculated")
+            logger.info("Price-to-Earnings-to-Dividend Ratio (PED)Ratio feature successfully calculated")
 
         # Calculate Price to Earnings and Price to Book Combined (PEPB)
         pepb_required_cols = ['PriceToEarnings', 'PriceToBook']
         if all(col in dt.columns for col in pepb_required_cols):
             dt['PEPB_Ratio'] = (dt['PriceToEarnings'] + dt['PriceToBook']) / 2
-            print("Price to Earnings and Price to Book Combined (PEPB)_Ratio feature successfully calculated")
+            logger.info("Price to Earnings and Price to Book Combined (PEPB)_Ratio feature successfully calculated")
+
+        # Calculate Price to Cash & Price to Earnings Combined (PCFPER)
+        pcfper_required_cols = ['PriceToEarnings', 'PriceToCash']
+        if all(col in dt.columns for col in pcfper_required_cols):
+            dt['PCFPER'] = (dt['PriceToEarnings'] + dt['PriceToCash']) / 2
+            logger.info("Price to Cash & Price to Earnings Combined (PCFPER) feature successfully calculated")
 
         #Calculate combined valuation metric (cvm)
         cvm_required_cols = ['DividendYield', 'PriceToEarnings', 'PriceToBook']
         if all(col in dt.columns for col in cvm_required_cols):
             dt['CVM'] = ((dt['DividendYield'] * 0.25) + (dt['PriceToEarnings'] * 0.50) + (dt['PriceToBook'] * 0.25))
-            print("combined valuation metric (cvm)_feature successfully calculated")
+            logger.info("Combined Valuation Metric (CVM)_feature successfully calculated")
 
         else:
             dt = dt.copy()
+            logger.info("No fundamental features were calculated")
 
         # Replace calculations with zero divisions which gives infinity values with zero
-        cols_to_replace_inf = ['PED_Ratio', 'PEPB_Ratio', 'CVM']
+        cols_to_replace_inf = ['PED_Ratio', 'PEPB_Ratio', 'CVM', 'PCFPER']
         dt[cols_to_replace_inf] = dt[cols_to_replace_inf].replace([np.inf, -np.inf], 0)
         return dt
 
@@ -224,6 +243,7 @@ class FeaturesCreation(FeaturesEngineering):
     def get_Macro_features(self, data):
         dt = data.copy()
         threshold = 1e-5 #thresholf for smallest possible divisor
+        threshold2 = 1e-2
 
         # Create Yield Spread Feature
         yield_cols = ['2yrTreasury', '10yrTreasury']
@@ -232,6 +252,7 @@ class FeaturesCreation(FeaturesEngineering):
             dt['TreasuryYieldRatio'] = dt.apply(lambda row: row['10yrTreasury'] / row['2yrTreasury']
             if abs(row['2yrTreasury']) > threshold else float('inf'), axis=1)  # Create Treasury Yield Feature,
             # converting very small values of denominator to inf and zerolized
+            logger.info("Yield Spread feature successfully calculated")
 
         #Create CPI/GDP Growth Feature
         cpi_gdp_cols = ['CPI', 'GDP']
@@ -239,14 +260,23 @@ class FeaturesCreation(FeaturesEngineering):
             dt['CPI_GDP_Ratio'] = dt.apply(lambda row: row['CPI'] / row['GDP']
             if abs(row['GDP']) > threshold else float('inf'),axis=1)  # Create CPI_GDP Ratio features,
             # converting very small values of denominator to inf and zerolized
+            logger.info("CPI/GDP Ratio feature successfully calculated")
 
         #Create CPI and Yield Correlation Feature
         cpi_yield_cols = ['CPI', '2yrTreasury']
         if all(col in dt.columns for col in cpi_yield_cols):
             dt['CPI_Yield_Correlation'] = dt['CPI'].rolling(window=22, min_periods=22).corr(
                 dt['2yrTreasury'])  # Create CPI_yield Correlation Feature
+            logger.info("CPI vs Yield Correlation feature successfully calculated")
 
-        cols_to_replace_inf = ['TreasuryYieldRatio', 'CPI_GDP_Ratio']
+        #Real Interest Rates Feature
+        real_rates_cols = ['CPI', '10yrTreasury']
+        if all(col in dt.columns for col in real_rates_cols):
+            dt['RealRates'] = dt.apply(lambda row: ((1 + row['10yrTreasury']) / (1 + row['CPI'])) - 1
+            if abs(row['10yrTreasury']) > threshold2 else float('inf'), axis=1)  # Create Real Rates Features
+            logger.info("Real Interest Rates feature successfully calculated")
+
+        cols_to_replace_inf = ['TreasuryYieldRatio', 'CPI_GDP_Ratio', 'RealRates']
 
         dt[cols_to_replace_inf] = dt[cols_to_replace_inf].replace([np.inf, -np.inf], 0)
         return dt
@@ -278,40 +308,46 @@ class FeaturesCreation(FeaturesEngineering):
 
     # Create Technical Indicator Features
     def get_TA_features(self, data) -> pd.DataFrame:
-        df = data.copy() #make a copy of the provided data
+        try:
+            df = data.copy() #make a copy of the provided data
 
-        df['days'] = df.index.day_name()# create days of the week feature
+            df['days'] = df.index.day_name()# create days of the week feature
 
-        # create all strategies from pandas-ta library.
-        df.ta.study("All", lookahead=False, talib=False)
-        # copy dataframe with technical indicators
-        data = df.copy()
-        #Define the target variable
-        data['predict'] = self.get_y(data, self.short_leg, self.long_leg,
-                                     self.upper_std, self.lower_std, self.tgt).values
-        # drop unwanted features columns
-        data.drop(
-            ['QQEl_14_5_4.236', 'QQEs_14_5_4.236', 'PSARl_0.02_0.2', 'PSARs_0.02_0.2', 'PSARaf_0.02_0.2',
-             'HILOs_13_21','HILOl_13_21', 'PSARr_0.02_0.2', 'SUPERTl_7_3.0', 'SUPERTs_7_3.0', 'SUPERTd_7_3.0',
-             'SUPERT_7_3.0', 'ZIGZAGs_5.0%_10', 'ZIGZAGv_5.0%_10', 'ZIGZAGd_5.0%_10', 'VIDYA_14', 'VHM_610'],
-            axis=1, inplace=True)
+            # create all strategies from pandas-ta library.
+            df.ta.study("All", lookahead=False, talib=False)
+            # copy dataframe with technical indicators
+            data = df.copy()
+            #Define the target variable
+            data['predict'] = self.get_y(data, self.short_leg, self.long_leg,
+                                         self.upper_std, self.lower_std, self.tgt).values
+            # drop unwanted features columns
+            data.drop(
+                ['QQEl_14_5_4.236', 'QQEs_14_5_4.236', 'PSARl_0.02_0.2', 'PSARs_0.02_0.2', 'PSARaf_0.02_0.2',
+                 'HILOs_13_21','HILOl_13_21', 'PSARr_0.02_0.2', 'SUPERTl_7_3.0', 'SUPERTs_7_3.0', 'SUPERTd_7_3.0',
+                 'SUPERT_7_3.0', 'ZIGZAGs_5.0%_10', 'ZIGZAGv_5.0%_10', 'ZIGZAGd_5.0%_10', 'VIDYA_14', 'VHM_610'],
+                axis=1, inplace=True)
 
-        # drop #ohlcv data
-        data.drop(columns=['Open', 'High', 'Low', 'Close', 'Volume'], axis=1, inplace=True)
+            # drop #ohlcv data
+            data.drop(columns=['Open', 'High', 'Low', 'Close', 'Volume'], axis=1, inplace=True)
 
-        # drop columns with infinity as values within them
-        specific_value = np.inf
-        specific_value2 = -np.inf
-        columns_to_drop = [col for col in data.columns if specific_value in data[col].values
-                           or specific_value2 in data[col].values]
-        data.drop(columns=columns_to_drop, axis=1, inplace=True)
+            # drop columns with infinity as values within them
+            specific_value = np.inf
+            specific_value2 = -np.inf
+            columns_to_drop = [col for col in data.columns if specific_value in data[col].values
+                               or specific_value2 in data[col].values]
+            data.drop(columns=columns_to_drop, axis=1, inplace=True)
 
-        # drop the first set of 100rows because of features with initial observation window requiring over 100days of data
-        df2 = data.copy()[100:]
+            # drop the first set of 100rows because of features with initial observation window requiring over 100days of data
+            df2 = data.copy()[100:]
 
-        # backfill columns to address missing values
-        df2 = df2.bfill(axis=1)
-        return df2
+            # backfill columns to address missing values
+            df2 = df2.bfill(axis=1)
+            logger.info("TA Features feature successfully calculated")
+            return df2
+
+        except:
+            logger.error("TA_features not created successfully, check setup")
+
 
 
 class FeaturesTransformation(FeaturesEngineering):
