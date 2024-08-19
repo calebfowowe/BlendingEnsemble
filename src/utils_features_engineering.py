@@ -530,13 +530,12 @@ class FeaturesSelection(FeaturesEngineering):
 
     #Unsupervised method in Feature selection
     #K-Means Clustering
-    def kmeans_selector(self, data, cluster_size=30, threshold=0.05, scaler=StandardScaler()):
+    def kmeans_selector(self, data, cluster_size=30, upper_threshold=0.10, lower_threshold=0.05, scaler=StandardScaler()):
         #Make a copy of the data provided.
         kmeans_data = data.drop('predict', axis=1)
 
         # Use elbow plot function to determine appropriate number clusters to target
-        target_cluster = self.get_cluster_number(kmeans_data, cluster_size, threshold)
-        logger.info(f"{target_cluster} target cluster")
+        target_cluster = self.get_cluster_number(kmeans_data, cluster_size, upper_threshold, lower_threshold)
 
         X_kmeans = data.drop('predict', axis=1) #make a copy of X_kmeans
         kmeans_scaled = scaler.fit_transform(X_kmeans) #scale the features
@@ -544,7 +543,6 @@ class FeaturesSelection(FeaturesEngineering):
 
         # Apply K-Means to the correlation matrix
         num_clusters = int(target_cluster) #number of clusters to target is determined by the elbow plot function output
-        logger.info(f"{num_clusters} number of cluster")
         kmeans = KMeans(n_clusters=num_clusters, random_state=rnd_state()) #define kmeans parameter
         kmeans.fit(kmeans_corr_matrix) #fit kmeans to corr_matrix_scaled
 
@@ -570,12 +568,12 @@ class FeaturesSelection(FeaturesEngineering):
         acc, f1score, class_rpt = self.randomforestSelection(X_train, X_test, y_train, y_test, cls_weight)
         print(f"\n Using K-Means selected features ({len(selected_features)})Filtered Features gives the following "
               f"values for tracked metrics: Accuracy Score: {acc:.2%}, f1_score: {f1score:.2%} \n")
-
+        logger.info(f"{len(selected_features)}final features were selected from the {num_clusters}clusters.")
         #return a list of selectd features
         return selected_features
 
     # Get the appropriate number of cluster to target
-    def get_cluster_number(self, features, cluster_size, threshold):
+    def get_cluster_number(self, features, cluster_size, upper_threshold, lower_threshold):
         data = features.copy() #copy the provided input data (features)
 
         wcss = [] #empty list to append Within Cluster Sum of Squares (wcss)
@@ -593,7 +591,7 @@ class FeaturesSelection(FeaturesEngineering):
         optimal_cluster = None
         # loop through the inertia's until the cluster that satisfies threshold condition is met.
         for i in range(1, cluster_select_size):
-            if relative_inertia[i] < threshold:
+            if relative_inertia[i] < upper_threshold and relative_inertia[i+1] >= lower_threshold:
                 optimal_cluster = i
                 break
         # if there is no minimum cluster value than threshold, return threshold
@@ -601,22 +599,22 @@ class FeaturesSelection(FeaturesEngineering):
             optimal_clusters = cluster_select_size
 
         # plot the elbow plot
-        self.plot_elbow_plot(n_clusters, relative_inertia)
-        logger.info(f"{optimal_cluster} optimal clusters")
+        self.plot_elbow_plot(n_clusters, relative_inertia, upper_threshold, lower_threshold)
+        logger.info(f"{optimal_cluster} optimal clusters selected")
         #return optimal cluster value
         return int(optimal_cluster)
 
 
     # Elbow plot
     @staticmethod
-    def plot_elbow_plot(n_clusters, inertia):
+    def plot_elbow_plot(n_clusters, inertia, upper_threshold, lower_threshold):
         # plot features
         plt.plot(n_clusters, inertia)
         plt.title("Elbow method")
         plt.xlabel("Number of clusters")
         plt.ylabel("relative inertia")
-        plt.hlines(0.1, n_clusters[0], n_clusters[-1], 'r', linestyles='dashed')
-        plt.hlines(0.05, n_clusters[0], n_clusters[-1], 'r', linestyles='dashed')
+        plt.hlines(upper_threshold, n_clusters[0], n_clusters[-1], 'r', linestyles='dashed')
+        plt.hlines(lower_threshold, n_clusters[0], n_clusters[-1], 'r', linestyles='dashed')
         plt.legend(['inertia', '10% relative inertia', '5% relative inertia']);
 
         return plt.show()
