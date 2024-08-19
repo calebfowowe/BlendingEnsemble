@@ -23,6 +23,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3])) #creates an output 
 import warnings
 warnings.filterwarnings('ignore')
 
+# Defining random state
+def rnd_state():
+    return np.random.RandomState(30)
+
 #Function to create a folder where outputs of the projects are stored within the local drive
 def getpath(name=None):
     if name is not None:
@@ -202,9 +206,7 @@ class LoadData:
                                    text=f"{event_title}", showarrow=False,
                                    textangle=90,
                                    xanchor='left', yanchor='top',
-                                   font=dict(color="red", size=12))
-                                   # bgcolor="rgba(255,255,255,0.7)",
-                                   # bordercolor="red")
+                                   font=dict(color="purple", size=12))
 
         fig.update_layout(title=f'Candlestick of Price data Open, High, Low and Close',
                           xaxis={'title':'Date', 'color': 'black', 'zeroline': True},

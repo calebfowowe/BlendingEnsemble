@@ -10,6 +10,7 @@ import plotly.graph_objects as go
 
 px.height, px.width = 500, 700
 
+# Sklearn libraries
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import train_test_split, TimeSeriesSplit
@@ -24,16 +25,20 @@ from sklearn.naive_bayes import GaussianNB
 
 from xgboost import XGBClassifier
 
+#Inbuilt library
 from functools import partial
 
 #Hyperparameter tuning module
 import optuna
 optuna.logging.set_verbosity(optuna.logging.WARNING) #setting verbosity to zero
 
-
 #Ignore warnings
 import warnings
 warnings.filterwarnings('ignore')
+
+from src.utils_data_processing import rnd_state
+
+
 
 #BLENDED ENSEMBLE
 class Blending:
@@ -239,7 +244,8 @@ class HpTuning:
                 max_depth=max_depth,
                 max_features=max_features,
                 min_samples_split=min_samples_split,
-                ccp_alpha=ccp_alpha
+                ccp_alpha=ccp_alpha,
+                random_state=rnd_state()
             ))
         ])
         f1score, acc_score = self.optuna_tscv(x=x, y=y, model=model)
@@ -264,8 +270,9 @@ class HpTuning:
                 max_depth=max_depth,
                 min_samples_split=min_samples_split,
                 min_samples_leaf=min_samples_leaf,
-                ccp_alpha=ccp_alpha, random_state=42,
-                criterion=criterion
+                ccp_alpha=ccp_alpha,
+                criterion=criterion,
+                random_state=rnd_state()
             ))
         ])
         f1score, acc_score = self.optuna_tscv(x=x, y=y, model=model)
@@ -299,7 +306,8 @@ class HpTuning:
                 alpha=alpha,
                 colsample_bytree=colsample_bytree,
                 subsample=subsample,
-                tree_method=tree_method
+                tree_method=tree_method,
+                random_state=rnd_state()
             ))
         ])
         f1score, acc_score = self.optuna_tscv(x=x, y=y, model=model)
@@ -319,7 +327,7 @@ class HpTuning:
             ("scaler", StandardScaler()),
             ("model", AdaBoostClassifier(
                 n_estimators=n_estimators,
-                learning_rate=learning_rate,
+                learning_rate=learning_rate
             ))
         ])
         f1score, acc_score = self.optuna_tscv(x=x, y=y, model=model)
@@ -346,6 +354,7 @@ class HpTuning:
                 gamma=gamma,
                 degree=degree,
                 tol=tol,
+                random_state=rnd_state()
             ))
         ])
         f1score, acc_score = self.optuna_tscv(x=x, y=y, model=model)
@@ -395,6 +404,7 @@ class HpTuning:
                 tol=tol,
                 solver=solver,
                 n_jobs=-1,
+                random_state=rnd_state()
             ))
         ])
         f1score, acc_score = self.optuna_tscv(x=x, y=y, model=model)
