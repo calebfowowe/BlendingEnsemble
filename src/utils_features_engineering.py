@@ -1,5 +1,7 @@
+#import internal module
+from src.utils_data_processing import getpath, rnd_state
+
 # Data manipulation libraries
-import traceback
 import pandas as pd
 import numpy as np
 
@@ -18,8 +20,6 @@ from boruta import BorutaPy
 #File processor
 import sys
 from pathlib import Path
-
-from src.utils_data_processing import getpath, rnd_state
 
 #Technical indicator
 import pandas_ta as ta
