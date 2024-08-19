@@ -16,8 +16,8 @@ from pathlib import Path
 from datetime import datetime
 
 import sys
-sys.path.insert(0, str(Path(__file__).resolve().parents[3])) #creates an output directory within the system
-# where charts, and plots are stored.
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+#creates an output directory within the system where charts, and plots are stored.
 
 #Ignore warnings
 import warnings
@@ -258,7 +258,6 @@ class LoadData:
                 }
             ]
         )
-
         # Set the initial visible trace
         fig.update_traces(visible=False)
         fig.update_traces(visible=True, selector=dict(name='Close'))

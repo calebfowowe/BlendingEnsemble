@@ -10,7 +10,7 @@ import plotly.graph_objects as go
 
 px.height, px.width = 500, 700
 
-# Sklearn libraries
+# sklearn libraries
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import train_test_split, TimeSeriesSplit
@@ -37,7 +37,6 @@ import warnings
 warnings.filterwarnings('ignore')
 
 from src.utils_data_processing import rnd_state
-
 
 
 #BLENDED ENSEMBLE
@@ -187,7 +186,7 @@ class HpTuning:
      - number of splits (n_splits) to be used in TimeSeries cross-validation split, default is 4
      - number of trials (n_trials), default is 10
     """
-    def __init__(self, X, y, n_splits=4, n_trials=10,seed=1):
+    def __init__(self, X, y, n_splits=4, n_trials=10, seed=1):
         self.X = X
         self.y = y
         self.n_splits = n_splits
@@ -227,33 +226,6 @@ class HpTuning:
             f1score.append(cv_f1)
             acc_score.append(cv_acc)
         return np.mean(f1score), np.mean(acc_score)
-
-    # RANDOM-FOREST CLASSIFIER
-    def rf_objective(self, trial, x, y):
-        # Parameters
-        n_estimators = trial.suggest_int("n_estimators", 100, 1500)
-        max_depth = trial.suggest_int("max_depth", 3, 15)
-        max_features = trial.suggest_float("max_features", 0.01, 1)
-        min_samples_split = trial.suggest_int("min_samples_split", 2, 10, log=True)
-        ccp_alpha = trial.suggest_float("ccp_alpha", 0.01, 1.0, log=True)
-
-        model = Pipeline([
-            ("scaler", StandardScaler()),
-            ("model", RandomForestClassifier(
-                n_estimators=n_estimators,
-                max_depth=max_depth,
-                max_features=max_features,
-                min_samples_split=min_samples_split,
-                ccp_alpha=ccp_alpha,
-                random_state=rnd_state()
-            ))
-        ])
-        f1score, acc_score = self.optuna_tscv(x=x, y=y, model=model)
-        return f1score, acc_score
-
-    def optimize_rf(self, directions=['maximize', 'maximize']):
-        optimal = self.optim(self.rf_objective, directions=directions)
-        return optimal
 
     # DECISION TREE CLASSIFIER
     def dt_objective(self, trial, x, y):
@@ -313,27 +285,11 @@ class HpTuning:
         f1score, acc_score = self.optuna_tscv(x=x, y=y, model=model)
         return f1score, acc_score
 
-    def optimize_xgb(self, directions=['maximize', 'maximize']):
+    def optimize_xgb(self, directions=['maximize','maximize']):
         optimal = self.optim(self.xgb_objective, directions=directions)
         return optimal
 
-    # ADABOOST
-    def ada_objective(self, trial, x, y):
-        # Parameters
-        n_estimators = trial.suggest_int("n_estimators", 50, 1000)
-        learning_rate = trial.suggest_float("learning_rate", 0.001, 3.0, log=True)
-
-        model = Pipeline([
-            ("scaler", StandardScaler()),
-            ("model", AdaBoostClassifier(
-                n_estimators=n_estimators,
-                learning_rate=learning_rate
-            ))
-        ])
-        f1score, acc_score = self.optuna_tscv(x=x, y=y, model=model)
-        return f1score, acc_score
-
-    def optimize_ada(self, directions=['maximize', 'maximize']):
+    def optimize_ada(self, directions=['maximize','maximize']):
         optimal = self.optim(self.ada_objective, directions=directions)
         return optimal
 
@@ -360,7 +316,7 @@ class HpTuning:
         f1score, acc_score = self.optuna_tscv(x=x, y=y, model=model)
         return f1score, acc_score
 
-    def optimize_svc(self, directions=['maximize', 'maximize']):
+    def optimize_svc(self, directions=['maximize','maximize']):
         optimal = self.optim(self.svc_objective, directions=directions)
         return optimal
 
@@ -386,7 +342,7 @@ class HpTuning:
         f1score, acc_score = self.optuna_tscv(x=x, y=y, model=model)
         return f1score, acc_score
 
-    def optimize_knn(self, directions=['maximize', 'maximize']):
+    def optimize_knn(self, directions=['maximize','maximize']):
         optimal = self.optim(self.knn_objective, directions=directions)
         return optimal
 
@@ -414,8 +370,6 @@ class HpTuning:
         optimal = self.optim(self.lr_objective, directions=directions)
         return optimal
 
-
-
     # GAUSSIAN NB()
     def bayes_objective(self, trial, x, y):
         # Parameters
@@ -435,4 +389,49 @@ class HpTuning:
 
     def optimize_bayes(self, directions=['maximize', 'maximize']):
         optimal = self.optim(self.bayes_objective, directions=directions)
+        return optimal
+
+
+    # ADABOOST
+    def ada_objective(self, trial, x, y):
+        # Parameters
+        n_estimators = trial.suggest_int("n_estimators", 50, 1000)
+        learning_rate = trial.suggest_float("learning_rate", 0.001, 3.0, log=True)
+
+        model = Pipeline([
+            ("scaler", StandardScaler()),
+            ("model", AdaBoostClassifier(
+                n_estimators=n_estimators,
+                learning_rate=learning_rate
+            ))
+        ])
+        f1score, acc_score = self.optuna_tscv(x=x, y=y, model=model)
+        return f1score, acc_score
+
+
+    # RANDOM-FOREST CLASSIFIER
+    def rf_objective(self, trial, x, y):
+        # Parameters
+        n_estimators = trial.suggest_int("n_estimators", 100, 1500)
+        max_depth = trial.suggest_int("max_depth", 3, 15)
+        max_features = trial.suggest_float("max_features", 0.01, 1)
+        min_samples_split = trial.suggest_int("min_samples_split", 2, 10, log=True)
+        ccp_alpha = trial.suggest_float("ccp_alpha", 0.01, 1.0, log=True)
+
+        model = Pipeline([
+            ("scaler", StandardScaler()),
+            ("model", RandomForestClassifier(
+                n_estimators=n_estimators,
+                max_depth=max_depth,
+                max_features=max_features,
+                min_samples_split=min_samples_split,
+                ccp_alpha=ccp_alpha,
+                random_state=rnd_state()
+            ))
+        ])
+        f1score, acc_score = self.optuna_tscv(x=x, y=y, model=model)
+        return f1score, acc_score
+
+    def optimize_rf(self, directions=['maximize', 'maximize']):
+        optimal = self.optim(self.rf_objective, directions=directions)
         return optimal

@@ -27,18 +27,13 @@ import pandas_ta as ta
 #ML modules
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from sklearn.pipeline import Pipeline
-from sklearn.model_selection import train_test_split, TimeSeriesSplit
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
-from sklearn.svm import SVC
-from sklearn.neighbors import KNeighborsClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import (accuracy_score, f1_score, precision_score, recall_score,
                              classification_report, RocCurveDisplay, ConfusionMatrixDisplay)
 
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.feature_selection import RFE
-from sklearn.impute import KNNImputer
-from xgboost import XGBClassifier
 
 #Ignore warnings
 import warnings
@@ -50,10 +45,10 @@ import sys
 
 output = getpath("logs")
 
+#code logs stored here
 logger.remove()
 logger.add(sys.stdout, format="{time: MMMM D, YYYY - HH:mm:ss} ----- <level> {message} </level>")
 logger.add(f'{output}/blendingmodel.log', serialize=False)
-
 
 
 class DayTransformer(BaseEstimator, TransformerMixin):
@@ -347,7 +342,6 @@ class FeaturesCreation(FeaturesEngineering):
             logger.error("TA_features not created successfully, check setup")
 
 
-
 class FeaturesTransformation(FeaturesEngineering):
     """
     Features transformation class used to create a custom transformer which transforms the days column.
@@ -470,7 +464,6 @@ class FeaturesSelection(FeaturesEngineering):
         rfe_clf.fit(Xtrain, ytrain)
         rfe_selected_features = self.features_list[rfe_clf.support_]
         return rfe_selected_features
-
 
     #Multicollinearity: filtering for correlation among features
     def filter_correlation(self, corr_coeff = 0.9, df=None):
