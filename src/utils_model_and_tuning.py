@@ -562,5 +562,5 @@ class Backtest:
         #Extract backtest data into a dataframe
         self.bt_data = backtest_data[['Benchmark', 'Strategy']]
 
-        return backtest_data
+        return backtest_data #returns a dataframe with the calculated trading parameters.
 

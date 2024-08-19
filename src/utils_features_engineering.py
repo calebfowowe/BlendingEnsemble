@@ -29,8 +29,10 @@ from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from sklearn.pipeline import Pipeline
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import (accuracy_score, f1_score, precision_score, recall_score,
-                             classification_report, RocCurveDisplay, ConfusionMatrixDisplay)
+from sklearn.metrics import (accuracy_score, f1_score, precision_score, recall_score, classification_report)
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
+import matplotlib.pyplot as plt
 
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.feature_selection import RFE
@@ -97,9 +99,11 @@ class FeaturesEngineering:
         return Xtrain, Xtest, ytrain, ytest
 
     @staticmethod
-    def randomforestSelection(X_train, X_test, y_train, y_test, class_weight, scaler=StandardScaler(), max_features=6):
+    def randomforestSelection(X_train, X_test, y_train, y_test, class_weight,
+                              scaler=StandardScaler(), max_features=5):
         # define random forest classifier
-        rf = RandomForestClassifier(n_jobs=-1, class_weight=class_weight, random_state=rnd_state(), max_features=max_features)
+        rf = RandomForestClassifier(n_jobs=-1, class_weight=class_weight, random_state=rnd_state(),
+                                    max_features=max_features)
         # scale and fit the model
         rf_pipe = Pipeline([
             ('transformer', scaler),
@@ -116,6 +120,7 @@ class FeaturesEngineering:
 
         return acc_scores, f1score, class_rpt
 
+    # plot correlation matrix
     def plot_correlation_matrix(self, X, mthd='pearson'):
         corr_matrix = X.corr(method=mthd)
         # create a Plotly figure
@@ -374,8 +379,9 @@ class FeaturesSelection(FeaturesEngineering):
     Methods includes:
     1. Wrapper method, which uses both Boruta and Recursive Filter Method to arrive at a smaller feature set
     relative to the provided features. It outputs a list of feature names selected by the wrapper method.
-    2. Filter method, which uses correlation among features to select a smaller feature set.
-    The filter method, uses as input the wrapper method features, and outputs a smaller set.
+    2. Filter method, which uses correlation among features to select a smaller feature set, by trying to address,
+    multicollinearity among the features.The filter method, uses as input the wrapper method features, and outputs
+    a smaller feature set.
     """
     def __init__(self, dataframe: pd.DataFrame, testsize=0.20):
         super().__init__(dataframe, testsize)
@@ -392,51 +398,56 @@ class FeaturesSelection(FeaturesEngineering):
         # Define Features - X and target/label - y
         # features column - X variable
         X = self.df_boruta.drop('predict', axis=1)
+
         # declare target column as y variable
         y = self.df_boruta['predict'].values.astype(int)  # convert the target values to integer
 
-        self.features_list = self.df_boruta.drop('predict', axis=1).columns  #Column names
+        self.features_list = self.df_boruta.drop('predict', axis=1).columns  # Extract Feature names/list
 
         X_train, X_test, y_train, y_test = self.traintestsplit(X, y)
-        # convert to array
+        # convert to an array
         X_train, X_test, y_train, y_test = np.array(X_train), np.array(X_test), np.array(y_train), np.array(y_test)
 
-        # Feature selection, running the random forest classifier with all the created features.
+        # Pre-Boruta application: Random Forest Classifier on all the features.
         acc, f1score, class_rpt = self.randomforestSelection(X_train, X_test, y_train, y_test, self.class_weight)
         print(f"Pre-Boruta selection metrics: Accuracy Score: {acc: .2%}, f1_score: {f1score:.2%} \n")
 
         # Applying Boruta Selection
-        # define Boruta feature selection method
-        boruta_selector = BorutaPy(RandomForestClassifier(max_depth=max_depth, n_jobs=-1, class_weight=self.class_weight),
-                                   n_estimators='auto', verbose=verbose, random_state=rnd_state(), max_iter=max_iter)
+        # define Boruta feature selection parameters
+        boruta_selector = BorutaPy(RandomForestClassifier(max_depth=max_depth, n_jobs=-1,
+                                                          class_weight=self.class_weight), n_estimators='auto',
+                                                            verbose=verbose, random_state=rnd_state(), max_iter=max_iter)
 
         # find all Boruta selected features from the feature set.
         boruta_selector.fit(X_train, y_train)
         self.boruta_selected_features = list(self.features_list[boruta_selector.support_])
 
-        # call transform() on X to filter it down to selected features
+        # call transform() on X to filter down to selected features in both training and test set.
         X_train_filtered = boruta_selector.transform(X_train)
         X_test_filtered = boruta_selector.transform(X_test)
 
-        # Post Boruta selection, run the random forest classifier on the boruta selected features
+        # Post-Boruta selection, - Random Forest Classifier on Boruta selected Features
         acc2, f1score2, class_rpt2 = self.randomforestSelection(X_train_filtered, X_test_filtered, y_train, y_test,
                                                                 self.class_weight)
         print(f"\nUsing the ({len(self.boruta_selected_features)})Boruta"
               f"Selected Features, metrics: Accuracy Score: {acc2:.2%}, f1_score: {f1score2:.2%} \n")
 
 
-        # RFE Features - use Recursive Feature Elimination (RFE) already created as a method to select features.
+        # RFE Features - use Recursive Feature Elimination (RFE)
         # The number of features for the RFE to select is determined by the number of Boruta selected features.
-        rfe_selected_features = self.wrapper_rfe(X_train, y_train)
+        rfe_selected_features = self.wrapper_rfe(X_train, y_train) #call the RFE selected method with X and y train as inputs
+
+        #determine the intersected features of both Boruta and RFE approach.
         self.features_updated = list(set(self.boruta_selected_features) & set(rfe_selected_features))
 
+        # update X, for the features which are intersects of both Boruta and RFE approaches.
         X_updated = self.df_boruta[self.features_updated]
         y_updated = y
 
-        # updated features boruta and rfe
+        # Split the features updated features into a train test-split.
         X_train2, X_test2, y_train2, y_test2 = self.traintestsplit(X_updated, y_updated)
 
-        # Post Boruta & RFE intersection evaluation
+        # Intersected Features evaluation - Random Forest Classifier
         acc3, f1score3, class_rpt3 = self.randomforestSelection(X_train2, X_test2, y_train2, y_test2, self.class_weight)
         print(
             f"\n Using Recursive Forward Elimination (RFE) approach to validate the "
@@ -457,7 +468,7 @@ class FeaturesSelection(FeaturesEngineering):
         return self.features_updated
 
 
-    #Recursive Forward Elimination (RFE)
+    #Recursive Forward Elimination (RFE) Method
     def wrapper_rfe(self, Xtrain, ytrain):
         rfe_clf = RFE(estimator=RandomForestClassifier(random_state=rnd_state(), class_weight=self.class_weight),
                       n_features_to_select=len(self.boruta_selected_features))
@@ -465,8 +476,9 @@ class FeaturesSelection(FeaturesEngineering):
         rfe_selected_features = self.features_list[rfe_clf.support_]
         return rfe_selected_features
 
+
     #Multicollinearity: filtering for correlation among features
-    def filter_multicollinearity(self, corr_coeff=0.9, df=None):
+    def filter_multicollinearity(self, corr_coeff=0.7, df=None):
         if df is None:
             df = self.df_boruta[self.features_updated]
             df['predict'] = self.df_boruta['predict'].values.astype(int)
@@ -475,8 +487,8 @@ class FeaturesSelection(FeaturesEngineering):
             df['predict'] = df['predict'].values.astype(int)
 
         np.random.seed(rnd_state())
-        X_corr = df.drop('predict', axis=1)
-        cls_weight = self.cwts(df)
+        X_corr = df.drop('predict', axis=1) #X_corr: defines the features set alone, These are Boruta and RFE intersect features
+        cls_weight = self.cwts(df) # class weight for performance metrics evaluation
 
         # Plot correlation matrix
         self.plot_correlation_matrix(X_corr)
@@ -492,8 +504,8 @@ class FeaturesSelection(FeaturesEngineering):
 
         print(
             f"\n Solving for multicollinearity of features, and applying correlation coefficient of {corr_coeff}, "
-            f"the ({len(self.features_updated)})features selected which are the intersected features of Boruta and Recursive Forward"
-            f"Elimination (RFE) were filtered to {len(corr_features)}features \n")
+            f"the ({len(self.features_updated)})features selected which are the intersected features of Boruta "
+            f"and Recursive Forward Elimination (RFE) methods were filtered to {len(corr_features)}features \n")
 
         # print(corr_features)
         X_upd = df[corr_features]
@@ -502,7 +514,7 @@ class FeaturesSelection(FeaturesEngineering):
         # updated filtered features run
         X_train3, X_test3, y_train3, y_test3 = self.traintestsplit(X_upd, y_upd)
 
-        # Filtered selection results
+        # Filtered selection results - Random forest Classifier on Filtered set
         acc4, f1score4, class_rpt4 = self.randomforestSelection(X_train3, X_test3, y_train3, y_test3, cls_weight)
         print(
             f"\n After addressing the multicollinearity among features, applying RandomForestClassifier to "
@@ -511,13 +523,105 @@ class FeaturesSelection(FeaturesEngineering):
 
         #tabulate final selected features
         df_filtered = pd.DataFrame({'Filtered Features Names': corr_features})
-        # tab_index = [[i + 1] for i in range(0, len(df_filtered)+1)]
         df_filtered.insert(0, 'Index', range(1, len(df_filtered)+1))
-        # header = ['#', 'Filtered Features Names']
-        # print(tabulate(df_filtered, tablefmt="fancy_outline", headers=header))
         print(tabulate(df_filtered, tablefmt="fancy_outline", headers='keys', showindex=False))
-        return corr_features
 
+        return corr_features #returns list of mutlicolinearity corrected features.
+
+    #Unsupervised method in Feature selection
+    #K-Means Clustering
+    def kmeans_selector(self, data, cluster_size=30, threshold=0.05, scaler=StandardScaler()):
+        #Make a copy of the data provided.
+        kmeans_data = data.drop('predict', axis=1)
+
+        # Use elbow plot function to determine appropriate number clusters to target
+        target_cluster = self.get_cluster_number(kmeans_data, cluster_size, threshold)
+        logger.info(f"{target_cluster} target cluster")
+
+        X_kmeans = data.drop('predict', axis=1) #make a copy of X_kmeans
+        kmeans_scaled = scaler.fit_transform(X_kmeans) #scale the features
+        kmeans_corr_matrix = np.corrcoef(kmeans_scaled, rowvar=False) #use the correlation coefficient matrix on the cluster
+
+        # Apply K-Means to the correlation matrix
+        num_clusters = int(target_cluster) #number of clusters to target is determined by the elbow plot function output
+        logger.info(f"{num_clusters} number of cluster")
+        kmeans = KMeans(n_clusters=num_clusters, random_state=rnd_state()) #define kmeans parameter
+        kmeans.fit(kmeans_corr_matrix) #fit kmeans to corr_matrix_scaled
+
+        # Get cluster labels for each feature
+        labels = kmeans.labels_
+
+        # Selected features based on kmeans
+        selected_features = []
+        for i in range(num_clusters):
+            cluster_features = np.where(labels == i)[0]
+            selected_feature = cluster_features[0]
+            selected_features.append(X_kmeans.columns[selected_feature])
+
+        # Run Random Forest Classifier based on KMeans selected features
+        X_kupdated = data[selected_features]
+        y_kupdated = data['predict'].values.astype('int')
+
+        # updated filtered features run
+        cls_weight = self.cwts(data)
+        X_train, X_test, y_train, y_test = self.traintestsplit(X_kupdated, y_kupdated)
+
+        # Filtered selection results - Random forest Classifier on Filtered set
+        acc, f1score, class_rpt = self.randomforestSelection(X_train, X_test, y_train, y_test, cls_weight)
+        print(f"\n Using K-Means selected features ({len(selected_features)})Filtered Features gives the following "
+              f"values for tracked metrics: Accuracy Score: {acc:.2%}, f1_score: {f1score:.2%} \n")
+
+        #return a list of selectd features
+        return selected_features
+
+    # Get the appropriate number of cluster to target
+    def get_cluster_number(self, features, cluster_size, threshold):
+        data = features.copy() #copy the provided input data (features)
+
+        wcss = [] #empty list to append Within Cluster Sum of Squares (wcss)
+        n_clusters = range(1, cluster_size+1)
+        for i in n_clusters:
+            kmeans = KMeans(n_clusters=i, random_state=rnd_state())
+            kmeans.fit(data)
+            wcss.append(kmeans.inertia_)
+
+        # Loop through the relative inertia and determine cluster number that satisfies threshold conditions.
+        cluster_select_size = int(cluster_size - 1)
+        relative_inertia = np.divide(wcss, wcss[0])
+        #logger.info(f"{relative_inertia} relative inertia")
+        # Select the optimal number of clusters below the threshold
+        optimal_cluster = None
+        # loop through the inertia's until the cluster that satisfies threshold condition is met.
+        for i in range(1, cluster_select_size):
+            if relative_inertia[i] < threshold:
+                optimal_cluster = i
+                break
+        # if there is no minimum cluster value than threshold, return threshold
+        if optimal_cluster is None:
+            optimal_clusters = cluster_select_size
+
+        # plot the elbow plot
+        self.plot_elbow_plot(n_clusters, relative_inertia)
+        logger.info(f"{optimal_cluster} optimal clusters")
+        #return optimal cluster value
+        return int(optimal_cluster)
+
+
+    # Elbow plot
+    @staticmethod
+    def plot_elbow_plot(n_clusters, inertia):
+        # plot features
+        plt.plot(n_clusters, inertia)
+        plt.title("Elbow method")
+        plt.xlabel("Number of clusters")
+        plt.ylabel("relative inertia")
+        plt.hlines(0.1, n_clusters[0], n_clusters[-1], 'r', linestyles='dashed')
+        plt.hlines(0.05, n_clusters[0], n_clusters[-1], 'r', linestyles='dashed')
+        plt.legend(['inertia', '10% relative inertia', '5% relative inertia']);
+
+        return plt.show()
+
+    # Plot intersect of RFE and Boruta Features
     @staticmethod
     def plot_intersected_features(df):
         # Assign random positions for each feature
@@ -552,6 +656,7 @@ class FeaturesSelection(FeaturesEngineering):
             width=1000,
             height=1000,
         )
-        # Show the plot
+        #save plot in created output folder
         fig.write_html(f"{getpath()}/Boruta_vs_RFE selected features plot_{datetime.now()}.html")
-        fig.show()
+
+        fig.show()# Show the plot
