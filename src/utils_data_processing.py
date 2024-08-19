@@ -14,6 +14,7 @@ from sklearn.model_selection import train_test_split
 # Filepath manager
 from pathlib import Path
 from datetime import datetime
+import sklearn as sk
 
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
@@ -24,8 +25,10 @@ import warnings
 warnings.filterwarnings('ignore')
 
 # Defining random state
-def rnd_state():
-    return np.random.RandomState(30)
+import random
+def rnd_state(seed=30):
+    return seed
+
 
 #Function to create a folder where outputs of the projects are stored within the local drive
 def getpath(name=None):

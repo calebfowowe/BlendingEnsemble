@@ -466,15 +466,15 @@ class FeaturesSelection(FeaturesEngineering):
         return rfe_selected_features
 
     #Multicollinearity: filtering for correlation among features
-    def filter_correlation(self, corr_coeff = 0.9, df=None):
+    def filter_multicollinearity(self, corr_coeff=0.9, df=None):
         if df is None:
             df = self.df_boruta[self.features_updated]
             df['predict'] = self.df_boruta['predict'].values.astype(int)
         else:
             df = df
-            df['predict'] =df['predict'].values.astype(int)
+            df['predict'] = df['predict'].values.astype(int)
 
-        # df['predict'] = self.df_boruta['predict'].values.astype(int)
+        np.random.seed(rnd_state())
         X_corr = df.drop('predict', axis=1)
         cls_weight = self.cwts(df)
 
@@ -518,7 +518,6 @@ class FeaturesSelection(FeaturesEngineering):
         print(tabulate(df_filtered, tablefmt="fancy_outline", headers='keys', showindex=False))
         return corr_features
 
-
     @staticmethod
     def plot_intersected_features(df):
         # Assign random positions for each feature
@@ -549,7 +548,9 @@ class FeaturesSelection(FeaturesEngineering):
             yaxis=dict(showgrid=True, zeroline=True, showticklabels=False, title='RFE Features',
                        color='black'),
             margin=dict(l=40, r=40, b=40, t=40), plot_bgcolor='rgba(255, 255, 255, 1)',
-            paper_bgcolor='rgba(255, 255, 255, 1)'
+            paper_bgcolor='rgba(255, 255, 255, 1)',
+            width=1000,
+            height=1000,
         )
         # Show the plot
         fig.write_html(f"{getpath()}/Boruta_vs_RFE selected features plot_{datetime.now()}.html")

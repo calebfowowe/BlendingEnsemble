@@ -3,6 +3,7 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from datetime import datetime
 
 # Data visualization Library
 import plotly.express as px
@@ -19,7 +20,8 @@ from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
 from sklearn.svm import SVC
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import (accuracy_score, f1_score, precision_score, recall_score,
-                             classification_report, RocCurveDisplay, ConfusionMatrixDisplay)
+                             classification_report, RocCurveDisplay, ConfusionMatrixDisplay, confusion_matrix,
+                             roc_auc_score, roc_curve, auc)
 from sklearn.linear_model import LogisticRegression
 from sklearn.naive_bayes import GaussianNB
 
@@ -36,7 +38,10 @@ optuna.logging.set_verbosity(optuna.logging.WARNING) #setting verbosity to zero
 import warnings
 warnings.filterwarnings('ignore')
 
-from src.utils_data_processing import rnd_state
+#Other external modules used for the Backtest
+import quantstats as qs
+
+from src.utils_data_processing import getpath, rnd_state
 
 
 #BLENDED ENSEMBLE
@@ -78,18 +83,73 @@ class Blending:
         print(f"Blender f1score: {score * 100:.1}%")
 
     # confusion matrix
+    # def plot_confusion_matrix(self, y_pred):
+    #     ConfusionMatrixDisplay.from_predictions(self.y_test, y_pred, cmap=plt.cm.Blues)
+    #     plt.title("Confusion matrix")
+    #     plt.show()
+
     def plot_confusion_matrix(self, y_pred):
-        ConfusionMatrixDisplay.from_predictions(self.y_test, y_pred, cmap=plt.cm.Blues)
-        plt.title("Confusion matrix")
-        plt.show()
+        cm = confusion_matrix(self.y_test, y_pred)
+        labels = ['Class 0', 'Class 1']
+        fig = go.Figure(data=go.Heatmap(
+            z=cm,
+            x=labels,
+            y=labels,
+            colorscale='Blues',
+            texttemplate="%{z}", textfont={"size":20}
+        ))
+        fig.update_layout(
+            title="Confusion matrix",
+            xaxis={"title":"Predicted label", 'showgrid': False},
+            yaxis={"title": "True label", 'showgrid': False},
+            width=700,
+            height=700,
+        )
+        fig.show()
 
     # roc
+    # def plot_roc(self, y_prob):
+    #     RocCurveDisplay.from_predictions(self.y_test, y_prob)
+    #     plt.plot([0, 1], [0, 1], linestyle='--', label='Random 50:50')
+    #     plt.legend()
+    #     print('AUC-ROC curve \n')
+    #     plt.show()
+
     def plot_roc(self, y_prob):
-        RocCurveDisplay.from_predictions(self.y_test, y_prob)
-        plt.plot([0, 1], [0, 1], linestyle='--', label='Random 50:50')
-        plt.legend()
-        print('AUC-ROC curve \n')
-        plt.show()
+        fpr, tpr, thresholds = roc_curve(self.y_test, y_prob)
+        roc_auc = auc(fpr, tpr)
+        #create the ROC curve plot
+        fig = go.Figure()
+
+        # Add ROC curve
+        fig.add_trace(go.Scatter(
+            x=fpr, y=tpr,
+            mode='lines',
+            name=f'Classifier (AUC = {roc_auc:.2f})',
+            line=dict(color='red', width=2),
+        ))
+
+        # Add the diagonal line representing random chance (no skill classifier)
+        fig.add_trace(go.Scatter(
+            x=[0.0,1], y=[0.0,1],
+            mode='lines',
+            name='Random 50:50',
+            line=dict(color='navy', width=2, dash='dash')
+        ))
+
+        #Update layout
+        fig.update_layout(
+            title='Receiver Operating Characteristics (ROC) curve',
+            xaxis={'title': 'False Positive Rate', 'scaleanchor': "x", 'scaleratio': 1},
+            yaxis={'title': 'True Positive Rate', 'scaleanchor': "y", 'scaleratio': 1},
+            width=700,
+            height=700,
+            legend={
+                'orientation': 'h', 'yanchor': 'bottom', 'y': 0.1, 'xanchor': 'center', 'x': 0.5
+            }
+        )
+        #Dipslay plot
+        fig.show()
 
     # classification report
     def get_classification_report(self, y_pred):
@@ -169,6 +229,7 @@ class Blending:
 
         # plot roc, confusion matrix and generate classification report.
         self.plot_confusion_matrix(ypred)
+        print('')
         self.plot_roc(yprob)
         self.get_classification_report(ypred)
         # self.get_classification_report_full(yfull)
@@ -435,3 +496,71 @@ class HpTuning:
     def optimize_rf(self, directions=['maximize', 'maximize']):
         optimal = self.optim(self.rf_objective, directions=directions)
         return optimal
+
+# Backtesting
+class Backtest:
+    def __init__(self, dataframe):
+        self.dataframe = dataframe
+
+    @staticmethod
+    def sharpe_ratios(data):
+        bts = data[['Benchmark', 'Strategy']]
+        print(qs.stats.sharpe(bts))
+
+    def html_report(self, company_name=None):
+        date_time = datetime.now().strftime('%Y-%m-%d, %H%M%S')
+        if company_name is not None:
+            # generate report and save in the output folder
+            qs.reports.html(self.bt_data['Strategy'], self.bt_data['Benchmark'],
+                            title=f'Strategy BackTest Report for {company_name}',
+                            output=f'{getpath()}/{company_name}_backtesting_report_test_period-{date_time}.html')
+        else:
+            qs.reports.html(self.bt_data['Strategy'], self.bt_data['Benchmark'],
+                            title=f'Strategy BackTest Report',
+                            output=f'{getpath()}/backtesting_report_test_period-{date_time}.html')
+
+    def show_report(self, company_name=None):
+        if company_name is not None:
+            report = qs.reports.full(self.bt_data['Strategy'], benchmark=self.bt_dat['Benchmark'], mode='full',
+                            title=f'Strategy BackTest Report for {company_name}')
+        else:
+            report = qs.reports.full(self.bt_data['Strategy'], benchmark=self.bt_dat['Benchmark'], mode='full',
+                            title=f'Strategy BackTest Report')
+        return report
+
+
+    def approach1(self, label, horizon):
+        df = self.dataframe.copy()
+        # Extract Close prices over the range of dates of the full model
+        backtest_data = df[['Close', 'Open']][-len(label):]
+        backtest_data['Signal'] = label
+
+        # Entry logic
+        backtest_data['Entry'] = np.where(backtest_data['Signal'] == 1, backtest_data['Close'],
+                                          0)  # when the strategy signal is 1, we enter into a trade,
+                                                # and buy at the end of day's close.
+        # Exit Logic
+        backtest_data['Exit'] = np.where((backtest_data['Entry'] != 0) &
+                                         (backtest_data['Open'].shift(-horizon) <= backtest_data['Close']),
+                                         backtest_data['Open'].shift(-horizon), 0)  #
+        backtest_data['Exit'] = np.where((backtest_data['Entry'] != 0) &
+                                         (backtest_data['Open'].shift(-horizon) > backtest_data['Close']),
+                                         backtest_data['Close'].shift(-horizon), backtest_data['Exit'])
+
+        # Calculate MTM
+        backtest_data['P&L'] = backtest_data['Exit'] - backtest_data['Entry']
+
+        # Generate Equity Curve
+        backtest_data['Equity'] = backtest_data['P&L'].cumsum() + backtest_data['Close'][0]
+
+        # Calculate Benchmark Return
+        backtest_data['Benchmark'] = np.log(backtest_data['Close']).diff().fillna(0)
+
+        # Calculate Strategy Return
+        backtest_data['Strategy'] = (backtest_data['Equity'] / backtest_data['Equity'].shift(horizon) - 1).fillna(0)
+        backtest_data = backtest_data.iloc[:-1]
+        #Extract backtest data into a dataframe
+        self.bt_data = backtest_data[['Benchmark', 'Strategy']]
+
+        return backtest_data
+
