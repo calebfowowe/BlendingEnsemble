@@ -521,7 +521,7 @@ class FeaturesSelection(FeaturesEngineering):
             f"predictthe ({len(corr_features)})Filtered Features gives the following values for tracked metrics: "
             f"Accuracy Score: {acc4:.2%}, f1_score: {f1score4:.2%} \n")
 
-        #tabulate final selected features
+        #tabulate filtered selected features
         df_filtered = pd.DataFrame({'Filtered Features Names': corr_features})
         df_filtered.insert(0, 'Index', range(1, len(df_filtered)+1))
         print(tabulate(df_filtered, tablefmt="fancy_outline", headers='keys', showindex=False))
@@ -568,7 +568,14 @@ class FeaturesSelection(FeaturesEngineering):
         acc, f1score, class_rpt = self.randomforestSelection(X_train, X_test, y_train, y_test, cls_weight)
         print(f"\n Using K-Means selected features ({len(selected_features)})Filtered Features gives the following "
               f"values for tracked metrics: Accuracy Score: {acc:.2%}, f1_score: {f1score:.2%} \n")
-        logger.info(f"{len(selected_features)}final features were selected from the {num_clusters}clusters.")
+
+        logger.info(f"({len(selected_features)})final features were selected from the ({num_clusters})clusters.")
+
+        # tabulate final selected features
+        df_kmeans = pd.DataFrame({'K_means selected features': selected_features})
+        df_kmeans.insert(0, 'Index', range(1, len(df_kmeans) + 1))
+        print(tabulate(df_kmeans, tablefmt="grid", headers='keys', showindex=False))
+
         #return a list of selectd features
         return selected_features
 
@@ -577,7 +584,7 @@ class FeaturesSelection(FeaturesEngineering):
         data = features.copy() #copy the provided input data (features)
 
         wcss = [] #empty list to append Within Cluster Sum of Squares (wcss)
-        n_clusters = range(1, cluster_size+1)
+        n_clusters = np.arange(1, cluster_size+1)
         for i in n_clusters:
             kmeans = KMeans(n_clusters=i, random_state=rnd_state())
             kmeans.fit(data)
@@ -600,7 +607,9 @@ class FeaturesSelection(FeaturesEngineering):
 
         # plot the elbow plot
         self.plot_elbow_plot(n_clusters, relative_inertia, upper_threshold, lower_threshold)
-        logger.info(f"{optimal_cluster} optimal clusters selected")
+        logger.info(f"{optimal_cluster} optimal clusters selected, which were within the threshold of "
+                    f"{upper_threshold:.2%}, and {lower_threshold:.2%}.")
+
         #return optimal cluster value
         return int(optimal_cluster)
 
@@ -608,16 +617,44 @@ class FeaturesSelection(FeaturesEngineering):
     # Elbow plot
     @staticmethod
     def plot_elbow_plot(n_clusters, inertia, upper_threshold, lower_threshold):
-        # plot features
-        plt.plot(n_clusters, inertia)
-        plt.title("Elbow method")
-        plt.xlabel("Number of clusters")
-        plt.ylabel("relative inertia")
-        plt.hlines(upper_threshold, n_clusters[0], n_clusters[-1], 'r', linestyles='dashed')
-        plt.hlines(lower_threshold, n_clusters[0], n_clusters[-1], 'r', linestyles='dashed')
-        plt.legend(['inertia', '10% relative inertia', '5% relative inertia']);
+        fig = go.Figure()
+        # plot features in clusters
+        fig.add_trace(go.Scatter(
+            x = n_clusters,
+            y = inertia,
+            mode='lines',
+        ))
 
-        return plt.show()
+        fig.add_shape(
+            type='line',
+            x0=n_clusters[0], x1=n_clusters[-1],
+            y0=upper_threshold, y1=upper_threshold,
+            line=dict(color='red', dash='dash', width=2),
+        )
+        fig.add_shape(
+            type='line',
+            x0=n_clusters[0], x1=n_clusters[-1],
+            y0=lower_threshold, y1=lower_threshold,
+            line=dict(color='red', dash='dash', width=2),
+        )
+        fig.update_layout(
+            title='Elbow Plot',
+            width=650, height=450,
+            xaxis_title='Number of Clusters',
+            yaxis_title='Relative Inertia',
+
+        )
+        #
+        # plt.plot(n_clusters, inertia)
+        # plt.title("Elbow method")
+        # plt.xlabel("Number of clusters")
+        # plt.ylabel("relative inertia")
+        # plt.hlines(upper_threshold, n_clusters[0], n_clusters[-1], 'r', linestyles='dashed')
+        # plt.hlines(lower_threshold, n_clusters[0], n_clusters[-1], 'r', linestyles='dashed')
+        # plt.legend(['inertia', '10% relative inertia', '5% relative inertia']);
+        fig.write_html(f"{getpath()}/Elbow plot{datetime.now()}.html")
+
+        return fig.show()
 
     # Plot intersect of RFE and Boruta Features
     @staticmethod
