@@ -688,8 +688,8 @@ class FeaturesSelection(FeaturesEngineering):
                        color='black'),
             margin=dict(l=40, r=40, b=40, t=40), plot_bgcolor='rgba(255, 255, 255, 1)',
             paper_bgcolor='rgba(255, 255, 255, 1)',
-            width=1000,
-            height=1000,
+            width=850,
+            height=750,
         )
         #save plot in created output folder
         fig.write_html(f"{getpath()}/Boruta_vs_RFE selected features plot_{datetime.now()}.html")
