@@ -40,6 +40,7 @@ warnings.filterwarnings('ignore')
 
 #Other external modules used for the Backtest
 import quantstats as qs
+from backtesting import Backtest, Strategy
 
 from src.utils_data_processing import getpath, rnd_state
 
@@ -262,7 +263,7 @@ class HpTuning:
 
         return trial_with_highest_accuracy
 
-    ### Tuning time spliit
+    ### Tuning time split
     def optuna_tscv(self, x, y, model):
         # Time series split
         tscv = TimeSeriesSplit(n_splits=self.n_splits, gap=1)
@@ -497,8 +498,10 @@ class HpTuning:
         optimal = self.optim(self.rf_objective, directions=directions)
         return optimal
 
-# Backtesting
-class Backtest:
+
+
+#BACKTESTING
+class SimpleBacktest:
     def __init__(self, dataframe):
         self.dataframe = dataframe
 
@@ -563,4 +566,50 @@ class Backtest:
         self.bt_data = backtest_data[['Benchmark', 'Strategy']]
 
         return backtest_data #returns a dataframe with the calculated trading parameters.
+
+
+class SignalStrategy(Strategy):
+    def init(self):
+        pass
+
+    def next(self):
+        current_signal = self.data.Signal[-1]
+        if current_signal == 1:
+            if not self.position:
+                self.buy()
+        else:
+            if self.position:
+                self.position.close()
+        pass
+
+class Btest:
+    """
+    Class to run the ML generated trade signals derived through the popular Backtetsing module
+    Input includes:
+        - Dataframe use in the analysis, consisting of Open, High, Low, Close, and Volume data
+        - The trend signal generated in a list format
+    Using the provided input, strategy is run through the method runStrategy()
+    Outputs:
+        - statistics vs Buy hold & strategy: through method: runstats()
+        - plot of the buy sell signals: through the method: plotstats()
+    """
+    def __init__(self, dataframe, signal, commission=0.002, exclusive=True):
+        self.dataframe = dataframe
+        self.signal = signal
+        self.commission = commission
+        self.exclusive = exclusive
+
+    def runStrategy(self):
+        data = self.dataframe[['Open', 'High', 'Low', 'Close']][-len(self.signal):]
+        data['Signal'] = self.signal
+
+        self.bt = Backtest(data, SignalStrategy, cash=10_000,
+                           commission=self.commission, exclusive_orders=self.exclusive) #use the backtesting class
+        return self.bt
+    def runstats(self):
+        return self.bt.run()
+    def plotstats(self):
+        return self.bt.plot()
+
+
 

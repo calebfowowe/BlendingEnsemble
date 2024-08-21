@@ -279,6 +279,47 @@ class FeaturesCreation(FeaturesEngineering):
         dt[cols_to_replace_inf] = dt[cols_to_replace_inf].replace([np.inf, -np.inf], 0)
         return dt
 
+    @staticmethod
+    def get_label(data, shift_prd, round_val):
+        """ Return dependent variable y"""
+        y = data['Close'].pct_change(shift_prd).shift(shift_prd) #Calculate returns over specified period
+        y[y.between(-round_val, round_val)] = 0 #Devalue returns smaller than 0.020%
+        y[y > 0] = 1
+        y[y < 0] = 0
+        return y
+
+
+    @staticmethod
+    def get_label_col(data, periods=14):
+
+        # Calculating the On-Balance Volume (OBV)
+        obv = [0]
+        for i in range(1, len(data)):
+            if data['Close'][i] > data['Close'][i - 1]:
+                obv.append(obv[-1] + data['Volume'][i])
+            elif data['Close'][i] < data['Close'][i - 1]:
+                obv.append(obv[-1] - data['Volume'][i])
+            else:
+                obv.append(obv[-1])
+        data['OBV'] = obv
+
+        # Calculate momentum
+        data['Momentum'] = data['Close'].diff(periods=periods)
+        data['Daily_Return'] = data['Close'].pct_change()
+
+        signals = []
+        for i in range(len(data)):
+            # Buy if momentum is positive and OBV is increasing
+            if data['Momentum'][i] > 0 and data['OBV'][i] > data['OBV'][i - 1]:
+                signals.append(1)
+            else:
+                signals.append(0)
+
+        data.drop(columns=('OBV', 'Daily_Return', 'Momentum', 'Daily_Return'),
+                  axis=1, inplace=True)
+        return signals
+
+
     #Create target variable (y)
     @staticmethod
     def get_y(data, short_prd, medium_prd, upper_std, lower_std, tgt):
@@ -304,6 +345,7 @@ class FeaturesCreation(FeaturesEngineering):
         y = data['predict']
         return y
 
+
     # Create Technical Indicator Features
     def get_TA_features(self, data) -> pd.DataFrame:
         try:
@@ -311,19 +353,23 @@ class FeaturesCreation(FeaturesEngineering):
 
             df['days'] = df.index.day_name()# create days of the week feature
 
-            # create all strategies from pandas-ta library.
+            # create all technical indicator strategies from pandas-ta library.
             df.ta.study("All", lookahead=False, talib=False)
-            # copy dataframe with technical indicators
-            data = df.copy()
+
+            data = df.copy()#making a copy of the dataframe with the technical indicators features.
+
             #Define the target variable
-            data['predict'] = self.get_y(data, self.short_period, self.medium_period,
-                                         self.upper_std, self.lower_std, self.tgt_hurdle).values
+            data['predict'] = self.get_y(df, self.short_period, self.medium_period,
+                                          self.upper_std, self.lower_std, self.tgt_hurdle).values
+            #data['predict'] = self.get_label(df, 1, 0.0003)
+
             # drop unwanted features columns
             data.drop(
                 ['QQEl_14_5_4.236', 'QQEs_14_5_4.236', 'PSARl_0.02_0.2', 'PSARs_0.02_0.2', 'PSARaf_0.02_0.2',
                  'HILOs_13_21','HILOl_13_21', 'PSARr_0.02_0.2', 'SUPERTl_7_3.0', 'SUPERTs_7_3.0', 'SUPERTd_7_3.0',
                  'SUPERT_7_3.0', 'ZIGZAGs_5.0%_10', 'ZIGZAGv_5.0%_10', 'ZIGZAGd_5.0%_10', 'VIDYA_14', 'VHM_610'],
                 axis=1, inplace=True)
+
 
             # drop #ohlcv data
             data.drop(columns=['Open', 'High', 'Low', 'Close', 'Volume'], axis=1, inplace=True)
@@ -340,6 +386,7 @@ class FeaturesCreation(FeaturesEngineering):
 
             # backfill columns to address missing values
             df2 = df2.bfill(axis=1)
+            df2 = df2[:-1]
             logger.info("Technical Indicator Features: feature successfully calculated")
             return df2
 
@@ -449,9 +496,8 @@ class FeaturesSelection(FeaturesEngineering):
 
         # Intersected Features evaluation - Random Forest Classifier
         acc3, f1score3, class_rpt3 = self.randomforestSelection(X_train2, X_test2, y_train2, y_test2, self.class_weight)
-        print(
-            f"\n Using Recursive Forward Elimination (RFE) approach to validate the "
-            f"({len(self.boruta_selected_features)})features selected by Boruta approach,"
+        print(f"\n Using Recursive Forward Elimination (RFE) approach to validate the "
+              f"({len(self.boruta_selected_features)})features selected by Boruta approach,"
             f"({len(self.features_updated)})features which are the intersect features "
             f"for both Boruta and RFE, the evaluation metrics using the ({len(self.features_updated)})features are: "
             f"Accuracy Score: {acc3: .2%}, f1_score: {f1score3:.2%} \n")
@@ -487,7 +533,8 @@ class FeaturesSelection(FeaturesEngineering):
             df['predict'] = df['predict'].values.astype(int)
 
         np.random.seed(rnd_state())
-        X_corr = df.drop('predict', axis=1) #X_corr: defines the features set alone, These are Boruta and RFE intersect features
+        X_corr = df.drop('predict', axis=1) #X_corr: defines the features set alone, These are
+        # Boruta and RFE intersect features
         cls_weight = self.cwts(df) # class weight for performance metrics evaluation
 
         # Plot correlation matrix
@@ -502,12 +549,11 @@ class FeaturesSelection(FeaturesEngineering):
         # extract filtered feature names to a list.
         corr_features = X_filtered.columns.tolist()
 
-        print(
-            f"\n Solving for multicollinearity of features, and applying correlation coefficient of {corr_coeff}, "
+        print(f"\n Solving for multicollinearity of features, and applying correlation coefficient of {corr_coeff}, "
             f"the ({len(self.features_updated)})features selected which are the intersected features of Boruta "
             f"and Recursive Forward Elimination (RFE) methods were filtered to {len(corr_features)}features \n")
 
-        # print(corr_features)
+        # update the features list with the correlated feature list.
         X_upd = df[corr_features]
         y_upd = df['predict'].values.astype('int')
 
@@ -530,7 +576,8 @@ class FeaturesSelection(FeaturesEngineering):
 
     #Unsupervised method in Feature selection
     #K-Means Clustering
-    def kmeans_selector(self, data, cluster_size=30, upper_threshold=0.10, lower_threshold=0.05, scaler=StandardScaler()):
+    def kmeans_selector(self, data, cluster_size=30, upper_threshold=0.10,
+                        lower_threshold=0.05, scaler=StandardScaler()):
         #Make a copy of the data provided.
         kmeans_data = data.drop('predict', axis=1)
 
@@ -624,7 +671,6 @@ class FeaturesSelection(FeaturesEngineering):
             y = inertia,
             mode='lines',
         ))
-
         fig.add_shape(
             type='line',
             x0=n_clusters[0], x1=n_clusters[-1],
@@ -641,19 +687,9 @@ class FeaturesSelection(FeaturesEngineering):
             title='Elbow Plot',
             width=650, height=450,
             xaxis_title='Number of Clusters',
-            yaxis_title='Relative Inertia',
-
+            yaxis_title='Relative Inertia'
         )
-        #
-        # plt.plot(n_clusters, inertia)
-        # plt.title("Elbow method")
-        # plt.xlabel("Number of clusters")
-        # plt.ylabel("relative inertia")
-        # plt.hlines(upper_threshold, n_clusters[0], n_clusters[-1], 'r', linestyles='dashed')
-        # plt.hlines(lower_threshold, n_clusters[0], n_clusters[-1], 'r', linestyles='dashed')
-        # plt.legend(['inertia', '10% relative inertia', '5% relative inertia']);
         fig.write_html(f"{getpath()}/Elbow plot{datetime.now()}.html")
-
         return fig.show()
 
     # Plot intersect of RFE and Boruta Features
@@ -676,7 +712,6 @@ class FeaturesSelection(FeaturesEngineering):
             labels={'Boruta_Pos': 'Boruta Position', 'RFE_Pos': 'RFE Position'},
             size_max=10  # Maximum size for the markers
         )
-
         # Customize hover information and appearance
         fig.update_traces(textposition='top center', marker=dict(size=12, color='rgba(93, 164, 214, 0.6)',
                                                                  line=dict(width=2)))
@@ -688,8 +723,8 @@ class FeaturesSelection(FeaturesEngineering):
                        color='black'),
             margin=dict(l=40, r=40, b=40, t=40), plot_bgcolor='rgba(255, 255, 255, 1)',
             paper_bgcolor='rgba(255, 255, 255, 1)',
-            width=850,
-            height=750,
+            width=1000,
+            height=800,
         )
         #save plot in created output folder
         fig.write_html(f"{getpath()}/Boruta_vs_RFE selected features plot_{datetime.now()}.html")
