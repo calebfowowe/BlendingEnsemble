@@ -602,17 +602,18 @@ class Btest:
         - statistics vs Buy hold & strategy: through method: runstats()
         - plot of the buy sell signals: through the method: plotstats()
     """
-    def __init__(self, dataframe, signal, commission=0.002, exclusive=True):
+    def __init__(self, dataframe, signal, commission=0.002, exclusive=True, starting_cash=10_000):
         self.dataframe = dataframe
         self.signal = signal
         self.commission = commission
         self.exclusive = exclusive
+        self.starting_cash = starting_cash
 
     def runStrategy(self):
         data = self.dataframe[['Open', 'High', 'Low', 'Close']][-len(self.signal):]
         data['Signal'] = self.signal
 
-        self.bt = Backtest(data, SignalStrategy, cash=10_000,
+        self.bt = Backtest(data, SignalStrategy, cash=self.starting_cash,
                            commission=self.commission, exclusive_orders=self.exclusive) #use the backtesting class
         return self.bt
     def runstats(self):
