@@ -2,7 +2,6 @@
 # Data manipulation libraries
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 from datetime import datetime
 
 # Data visualization Library
@@ -33,6 +32,7 @@ from functools import partial
 #Hyperparameter tuning module
 import optuna
 optuna.logging.set_verbosity(optuna.logging.WARNING) #setting verbosity to zero
+from tabulate import tabulate
 
 #Ignore warnings
 import warnings
@@ -248,7 +248,7 @@ class HpTuning:
      - number of splits (n_splits) to be used in TimeSeries cross-validation split, default is 4
      - number of trials (n_trials), default is 10
     """
-    def __init__(self, X, y, n_splits=4, n_trials=10, seed=1):
+    def __init__(self, X, y, n_splits=4, n_trials=10, seed=rnd_state()):
         self.X = X
         self.y = y
         self.n_splits = n_splits
@@ -497,6 +497,15 @@ class HpTuning:
     def optimize_rf(self, directions=['maximize', 'maximize']):
         optimal = self.optim(self.rf_objective, directions=directions)
         return optimal
+
+    @staticmethod
+    def hp_preview(params_list, params_name):
+        for i, param in enumerate(params_list):
+
+            tuned_params = pd.DataFrame(list(param.items()), columns=['Hyper-parameter', 'Tuned Values'])
+            tuned_params.insert(0, 'Index', range(1, len(param) + 1))
+            print(params_name[i])
+            print(tabulate(tuned_params, tablefmt="grid", headers='keys', showindex=False))
 
 
 
