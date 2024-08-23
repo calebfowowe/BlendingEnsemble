@@ -18,9 +18,7 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
 from sklearn.svm import SVC
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.metrics import (accuracy_score, f1_score, precision_score, recall_score,
-                             classification_report, RocCurveDisplay, ConfusionMatrixDisplay, confusion_matrix,
-                             roc_auc_score, roc_curve, auc)
+from sklearn.metrics import (accuracy_score, f1_score, classification_report, confusion_matrix, roc_curve, auc)
 from sklearn.linear_model import LogisticRegression
 from sklearn.naive_bayes import GaussianNB
 
@@ -83,12 +81,6 @@ class Blending:
         score = f1_score(self.y_test, y_pred, average='weighted')
         print(f"Blender f1score: {score * 100:.1}%")
 
-    # confusion matrix
-    # def plot_confusion_matrix(self, y_pred):
-    #     ConfusionMatrixDisplay.from_predictions(self.y_test, y_pred, cmap=plt.cm.Blues)
-    #     plt.title("Confusion matrix")
-    #     plt.show()
-
     def plot_confusion_matrix(self, y_pred):
         cm = confusion_matrix(self.y_test, y_pred)
         labels = ['Class 0', 'Class 1']
@@ -107,14 +99,6 @@ class Blending:
             height=700,
         )
         fig.show()
-
-    # roc
-    # def plot_roc(self, y_prob):
-    #     RocCurveDisplay.from_predictions(self.y_test, y_prob)
-    #     plt.plot([0, 1], [0, 1], linestyle='--', label='Random 50:50')
-    #     plt.legend()
-    #     print('AUC-ROC curve \n')
-    #     plt.show()
 
     def plot_roc(self, y_prob):
         fpr, tpr, thresholds = roc_curve(self.y_test, y_prob)
