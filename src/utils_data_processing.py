@@ -17,7 +17,7 @@ from datetime import datetime
 import sklearn as sk
 
 import sys
-sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
 #creates an output directory within the system where charts, and plots are stored.
 
 #Ignore warnings

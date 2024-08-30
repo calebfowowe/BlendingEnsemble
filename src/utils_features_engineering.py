@@ -1,5 +1,5 @@
 #import internal module
-from src.utils_data_processing import getpath, rnd_state
+from BlendingModel.src.utils_data_processing import getpath, rnd_state
 
 # Data manipulation libraries
 import pandas as pd
